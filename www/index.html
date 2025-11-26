@@ -139,6 +139,58 @@ function createPostElement(post) {
     `;
 }
 
+// 投稿の表示処理
+function renderPosts(posts) {
+    const postsDiv = $('#postsList');
+    postsDiv.empty();
+
+    if (posts.length === 0) {
+        postsDiv.html('<p class="no-posts">投稿はありません</p>');
+        return;
+    }
+
+    posts.forEach((post) => {
+        postsDiv.append(createPostElement(post));
+    });
+}
+
+// 投稿の読み込み：バグ入りなので要修正　（データの完全な取得に対するリスナーを設定する必要がある）
+function loadPosts() {
+    const sortOrder = $('#sortOrder').val();
+    $('#loadingSpinner').show();
+
+    // 既存のリスナーを解除
+    if (postsListener) {
+        postsRef.off('value', postsListener);
+        postsListener = null;
+    }
+
+    // リスナーを設定
+    postsListener = postsRef.on('child_added', (snapshot) => {
+        const posts = [];
+        snapshot.forEach((childSnapshot) => {
+            posts.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+
+        // 並び順の適用
+        if (sortOrder === 'newest') {
+            posts.sort((a, b) => b.timestamp - a.timestamp);
+        } else {
+            posts.sort((a, b) => a.timestamp - b.timestamp);
+        }
+
+        renderPosts(posts);
+        $('#loadingSpinner').hide();
+    }, (error) => {
+        console.error('Data fetch error:', error);
+        showMessage('データの読み込みに失敗しました', 'error');
+        $('#loadingSpinner').hide();
+    });
+}
+
 
 $(function() {
     // Firebaseの初期化
@@ -169,6 +221,12 @@ $(function() {
         const contentVal = $('#contentInput').val();
         createPost(authorVal, contentVal);
     });
+
+    // 投稿一覧表示順序選択
+    $('#sortOrder').on('change', loadPosts);
+
+    // 投稿一覧の初期読み込み
+    loadPosts();
 });
 
     </script>
@@ -196,6 +254,22 @@ $(function() {
             </div>
             <div class="button-group">
                 <button id="postButton" class="btn-primary">投稿する</button>
+            </div>
+        </div>
+
+        <!-- 投稿一覧 -->
+        <div class="posts-container">
+            <h2>投稿一覧</h2>
+            <div class="posts-control">
+                <select id="sortOrder" class="form-control">
+                    <option value="newest">新しい順</option>
+                    <option value="oldest">古い順</option>
+                </select>
+            </div>
+            <div id="postsList"></div>
+            <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+                <p>読み込み中...</p>
             </div>
         </div>
     </div>
